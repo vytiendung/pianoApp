@@ -165,8 +165,6 @@ public class SoundManager implements Constant {
 				genSourceMap(instrumentId, loadedNote);
 			}
 
-
-
 		} catch (Exception e) {
 			e.printStackTrace();
 		}

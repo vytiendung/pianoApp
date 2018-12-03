@@ -68,6 +68,7 @@ public class InGameActivity extends AppCompatActivity implements Constant, Enter
 		CCDirector.sharedDirector().runWithScene(gameScene);
 		mGLSurfaceView.setEnterFrameListener(this);
 		gamePlayController = new GamePlayController(gameScene, this, songPath);
+		gamePlayController.start();
 	}
 
 	@Override
@@ -75,6 +76,8 @@ public class InGameActivity extends AppCompatActivity implements Constant, Enter
 		super.onPause();
 		onPauseClick();
 	}
+
+
 
 	private void setLayoutNoMenuBar() {
 		requestWindowFeature(Window.FEATURE_NO_TITLE);
@@ -91,6 +94,12 @@ public class InGameActivity extends AppCompatActivity implements Constant, Enter
 			isShowDialogPaused = true;
 			gamePlayController.pause();
 		}
+	}
+
+	@Override
+	protected void onResume() {
+		super.onResume();
+		gamePlayController.resume();
 	}
 
 	@Override

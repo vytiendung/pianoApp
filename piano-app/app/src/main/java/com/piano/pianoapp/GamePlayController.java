@@ -26,6 +26,7 @@ public class GamePlayController implements KeyboardListener {
 	public static final String TAG = "GamePlayController";
 	public static final int TIME_WAIT_NOTE_SAME_STEP = 100;
 	private boolean isPlaying;
+	private boolean isPausing;
 	private CCSpriteFrameCache spriteFrameCache;
 	private CCScene gameScene;
 	private ArrayList<MidiStep> midiSteps;
@@ -51,7 +52,7 @@ public class GamePlayController implements KeyboardListener {
 	private long timeClickCurrentNote;
 	private SongData songData;
 	private ScoreCalculator challengeScore;
-	private ArrayList<TouchReceiver> touchReceivers;
+	private ArrayList<TouchReceiver> touchReceivers = new ArrayList<>();
 	private int numNote;
 	private CallbackGamePlay callbackGamePlay;
 	private String songPath = "";
@@ -66,14 +67,9 @@ public class GamePlayController implements KeyboardListener {
 
 	private void init(){
 		Log.d(TAG, "init: score");
-		backgroundNotes = new ArrayList<>();
 		iKeyboard = (IKeyboard) gameScene.getChildByTag(Constant.KEYBOARD_LAYER_TAG);
 		animateLayer = iKeyboard.getNoteAnimationLayer();
 		((InGameKeyboard)iKeyboard).setKeyboardListener(this);
-		midiSteps = getMidiStepsForTest(songPath);
-		stepDistances = getStepDistances();
-		notePoints = getNotePoints();
-		stepsDraw = new Hashtable<>();
 		Activity mContext = CCDirector.sharedDirector().getActivity();
 		vibrator = (Vibrator) mContext.getSystemService(Context.VIBRATOR_SERVICE);
 		challengeScore = ScoreCalculator.getInstance(new ScoreCalculator.ScoreListener() {
@@ -93,7 +89,16 @@ public class GamePlayController implements KeyboardListener {
 		challengeScore.enableComboGain();
 	}
 
+	private void initSongData() {
+		backgroundNotes = new ArrayList<>();
+		midiSteps = getMidiStepsForTest(songPath);
+		stepDistances = getStepDistances();
+		notePoints = getNotePoints();
+		stepsDraw = new Hashtable<>();
+	}
+
 	public void start() {
+		initSongData();
 		timeFromStart = 0;
 		isPlaying = true;
 		topScreen = config.winHeight + 1;
@@ -110,20 +115,20 @@ public class GamePlayController implements KeyboardListener {
 		preStep = null;
 		backgroundNotes.addAll(songData.backgroundNotes);
 		challengeScore.initialize(songData.steps.size());
-		touchReceivers = new ArrayList<>();
+		touchReceivers.clear();
 		callbackGamePlay.setScore(0);
 	}
 
 	public void resume(){
-		isPlaying = true;
+		if (isPausing) {
+			isPlaying = true;
+			isPausing = false;
+		}
 	}
 
 	public void pause() {
 		isPlaying = false;
-	}
-
-	public void destroy() {
-		pause();
+		isPausing = true;
 	}
 
 	public boolean isPlaying(){
@@ -137,7 +142,8 @@ public class GamePlayController implements KeyboardListener {
 			timeNeedAdd = 0;
 		}
 		timeFromStart+= deltaTime;
-		float y = (config.speed*deltaTime/1000);
+		float y = timeToDistance(deltaTime);
+		Log.d(TAG, "onEnterFrame: " + y);
 		animateLayerPosY -= y;
 		animateLayer.setPosition(0, animateLayerPosY);
 		topScreen += y;
@@ -148,13 +154,18 @@ public class GamePlayController implements KeyboardListener {
 			if (currentStep != null)
 				challengeScore.onIgnoreNote(currentStep.index);
 			updateCurrentNote();
+			Log.d(TAG, "onEnterFrame: abcxxx");
 			iKeyboard.showHintNote(currentStep.notes);
 		}
-		PlayBackgroundNotes();
+		playBackgroundNotes();
 		deleteStepIfNeed();
 		if (currentStep != null && currentStep.index == midiSteps.size()- 1 && currentStepEndTime < timeFromStart){
 			gameComplete();
 		}
+	}
+
+	private float timeToDistance(float time){
+		return  config.speed*time/1000;
 	}
 
 	private void calculateHoldingScoreOfNoteBeingTouched(float detalTime) {
@@ -199,7 +210,7 @@ public class GamePlayController implements KeyboardListener {
 		return challengeScore.getRubyReward();
 	}
 
-	private void PlayBackgroundNotes() {
+	private void playBackgroundNotes() {
 		if (backgroundNotes != null) {
 			for (int i = 0; i < backgroundNotes.size(); i++) {
 				MidiNote note = backgroundNotes.get(i);
@@ -207,7 +218,7 @@ public class GamePlayController implements KeyboardListener {
 					if (timeFromStart - note.startTime < TIME_WAIT_NOTE_SAME_STEP) {
 						SoundManager.getInstance().playSound(0, note.id,
 								note.velocity);
-						Log.d(TAG, "PlayBackgroundNotes: " + note.name );
+						Log.d(TAG, "playBackgroundNotes: " + note.name );
 					}
 					backgroundNotes.remove(i);
 				} else{
@@ -220,7 +231,9 @@ public class GamePlayController implements KeyboardListener {
 	private void gameComplete() {
 		Log.d(TAG, "onGameComplete: ");
 		callbackGamePlay.onGameComplete();
+		currentStep = null;
 		isPlaying = false;
+		animateLayer.removeAllChildren(true);
 		iKeyboard.clearHint();
 	}
 
@@ -269,7 +282,7 @@ public class GamePlayController implements KeyboardListener {
 				if (midiSteps.size() > nextDeleteStep){
 					MidiStep step = midiSteps.get(nextDeleteStep);
 					float distance = stepDistances.get(step.index);
-					if (distance + config.deviceHeight <= bottomScreen){
+					if (distance + config.deviceHeight + timeToDistance(step.duration) + 50 <= bottomScreen){
 						ArrayList<NoteObject> notesDraw = stepsDraw.get(step.index);
 						for (int i = 0; i < notesDraw.size(); i++) {
 							animateLayer.removeChild(notesDraw.get(i), true);
@@ -364,7 +377,7 @@ public class GamePlayController implements KeyboardListener {
 				SoundManager.getInstance().playSound(PIANO_INTRUMENT_ID, (keyboard.getIndex() - 1 + 21), pointerId,
 						DEFAULT_VOLUME);
 				vibrate();
-				challengeScore.onBeganTouchWrongNote(currentStep.index);
+//				challengeScore.onBeganTouchWrongNote(currentStep.index);
 			}
 		}
 
@@ -414,6 +427,7 @@ public class GamePlayController implements KeyboardListener {
 			noteObject.release();
 		}
 		updateCurrentNote();
+		Log.d(TAG, "doIfClickCurrentNote: abcxxx");
 		iKeyboard.showHintNote(currentStep.notes);
 		SoundManager.getInstance().playSound(PIANO_INTRUMENT_ID, midiNote.id, pointerId,
 				midiNote.velocity);
@@ -489,10 +503,10 @@ public class GamePlayController implements KeyboardListener {
 				SoundManager.getInstance().playSound(PIANO_INTRUMENT_ID,(keyboard.getIndex() - 1 + 21), pointerId,
 						DEFAULT_VOLUME);
 				vibrate();
-				challengeScore.onBeganTouchWrongNote(currentStep.index);
+				if (challengeScore != null && currentStep != null)
+					challengeScore.onBeganTouchWrongNote(currentStep.index);
 			}
 		}
-		vibrate();
 	}
 
 	@Override

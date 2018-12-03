@@ -1,6 +1,7 @@
 package com.piano.pianoapp.Activity;
 
 import android.content.Intent;
+import android.os.AsyncTask;
 import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -20,16 +21,16 @@ public class StartupActivity extends AppCompatActivity {
 		getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
 				WindowManager.LayoutParams.FLAG_FULLSCREEN);
 		setContentView(R.layout.startup_activity);
-		new Handler().post(new Runnable() {
+		new AsyncTask<Void, Void, String>() {
 			@Override
-			public void run() {
+			protected String doInBackground(Void... voids) {
 				UserConfig.getInstance().configWindowSize(StartupActivity.this);
 				UserConfig.getInstance().initConfig(StartupActivity.this);
 				SoundManager.getInstance().loadDefaultSound(0, Constant.PIANO_INTRUMENT_ID);
 				startActivity(new Intent(StartupActivity.this, InGameActivity.class));
 				finish();
-			}
-		});
+				return null;
+			}}.execute();
 
 	}
 }
